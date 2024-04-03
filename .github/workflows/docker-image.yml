@@ -37,7 +37,7 @@ jobs:
 
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@ad44023c3f24c9ebc4f8d0a5f7d2e07e6b6c4f29
+        uses: docker/build-push-action@v2
         with:
           context: ./Documentation/Build/
           dockerfile: Dockerfile
