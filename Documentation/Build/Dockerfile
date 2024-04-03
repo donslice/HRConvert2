@@ -1,60 +1,116 @@
-# Use a Debian-based image with Apache and PHP 8 installed
-FROM php:8.0-apache-buster
+# -----------------------------------------------------------------------------------
+# COPYRIGHT INFORMATION ...
+# HRConvert2, Copyright on 3/12/2024 by Justin Grimes, www.github.com/zelon88
 
-# Metadata
-LABEL org.opencontainers.image.title="HRConvert2" \
-      org.opencontainers.image.description="A web-interface for converting file formats on a server" \
-      org.opencontainers.image.authors="Justin Grimes <www.github.com/zelon88>" \
-      org.opencontainers.image.licenses="GPL-3.0-or-later"
+# LICENSE INFORMATION ...
+# This project is protected by the GNU GPLv3 Open-Source license.
+# https://www.gnu.org/licenses/gpl-3.0.html
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    libreoffice \
-    libreoffice-java-common \
-    unoconv \
-    clamav \
-    tesseract-ocr \
-    rar \
-    unrar \
-    p7zip-rar \
-    ffmpeg \
-    imagemagick \
-    meshlab \
-    dia \
-    pandoc \
-    mkisofs \
-    poppler-utils \
-    nodejs \
-    gnuplot \
-    tar \
-    default-jre \
-    zip \
-    gd \
-    && rm -rf /var/lib/apt/lists/*
+# APPLICATION INFORMATION ...
+# This application is designed to provide a web-interface for converting file formats
+# on a server for users of any web browser without authentication.
 
-# Enable Apache mods
-RUN a2enmod rewrite
+# FILE INFORMATION ...
+# v3.3.3.
+# This file contains the Docker build file for the project.
+# Build this with...
+#   docker build -t HRConvert2 .
+# Run this with...
+#   docker run -d -p 8080:80 -p 8443:443 HRConvert2
 
-# Update the PHP ini file, enable required extensions
-RUN { \
-        echo 'max_execution_time=90'; \
-        echo 'max_input_time=90'; \
-        echo 'memory_limit=512M'; \
-        echo 'display_errors=On'; \
-        echo 'post_max_size=3000M'; \
-        echo 'upload_max_filesize=3000M'; \
-        echo 'max_file_uploads=100'; \
-        echo 'zlib.output_compression=On'; \
-    } > /usr/local/etc/php/conf.d/hrconvert2.ini
+# HARDWARE REQUIREMENTS ...
+# This application requires at least a Raspberry Pi Model B+ or greater.
+# This application will run on just about any x86 or x64 computer.
 
-# Copy HRConvert2 application files
-COPY . /var/www/html/
+# DEPENDENCY REQUIREMENTS ...
+# This application requires Debian Linux (w/3rd Party audio license),
+# Apache 2.4, PHP 8+, LibreOffice, Unoconv, ClamAV, Tesseract, Rar, Unrar, Unzip,
+# 7zipper, FFMPEG, PDFTOTEXT, Dia, PopplerUtils, MeshLab, Mkisofs & ImageMagick.
 
-# Adjust permissions to allow Apache to serve the app
-RUN chown -R www-data:www-data /var/www/html && chmod -R 755 /var/www/html
+# <3 Open-Source
+# -----------------------------------------------------------------------------------
 
-# Expose port 80
+# Build this with...
+#   docker build -t hrconvert2 .
+
+# Run this with...
+#   docker run -d -p 8080:80 -p 8443:443 hrconvert2
+
+# Use the official PHP parent image.
+FROM php:8.1-apache
+
+# Create required directories.
+RUN mkdir /DATA && \
+  mkdir /DATA/HRConvert2
+
+# Set the working directory in the container.
+WORKDIR /var/www/html/HRProprietary
+
+# Create & process a debian.sources file.
+RUN apt-get update
+
+# Install git.
+RUN apt-get install -y git sed
+
+# Download the latest HRConvert2 source code from the official repository.
+RUN git clone https://github.com/zelon88/HRConvert2
+
+# Add non-free repos to software sources. Required for rar support.
+# There are two options for accomplishing this.
+# Uncomment the option that suits your needs, and comment out the other.
+#   The first option replaces the debian.sources file.
+#   The second option modifies the existing debian.sources file in-place.
+RUN cp HRConvert2/Documentation/Build/debian.sources /etc/apt/sources.list.d/debian.sources
+#RUN sed -i -e's/ main/ main contrib non-free/g' /etc/apt/sources.list.d/debian.sources
+
+# Re-process the updated debian.sources file.
+RUN apt-get update
+
+# Install dependencies.
+#RUN apt-get upgrade
+RUN apt-get install -y zlib1g-dev
+RUN apt-get install -y libpng-dev
+RUN apt-get install -y libzip-dev
+RUN docker-php-ext-install gd zip
+RUN apt-get install -y libreoffice-common default-jre libreoffice-java-common poppler-utils
+RUN apt-get install -y clamav unoconv p7zip-full meshlab dia pandoc python3 zip unzip ffmpeg
+RUN apt-get install -y xpdf mkisofs imagemagick meshlab tesseract-ocr tar
+
+## arm64 rar install hack (rar CLI only available for x86/x64 from rar labs)
+
+RUN DPKG_ARCH="$(dpkg --print-architecture)"; \
+    if [ "${DPKG_ARCH}" = "amd64" ]; then \
+        apt-get install -y rar; \
+    else \
+        dpkg --add-architecture i386 && \
+        apt-get install qemu-user-static libc6-i386-cross libstdc++6-i386-cross wget -y && \
+        cp /usr/i686-linux-gnu/lib/libm.so.6 /lib && \
+        cp /usr/i686-linux-gnu/lib/libc.so.6 /lib && \
+        cp /usr/i686-linux-gnu/lib/libpthread.so.0 /lib && \
+        cp /usr/i686-linux-gnu/lib/ld-linux.so.2 /lib && \
+        cp /usr/i686-linux-gnu/lib/libstdc++.so.6 /lib && \
+        cp /usr/i686-linux-gnu/lib/libgcc_s.so.1  /lib && \
+        wget https://www.rarlab.com/rar/rarlinux-x32-700b3.tar.gz  -O /tmp/rarlinux-x32-700b3.tar.gz && \
+        tar -zxvf /tmp/rarlinux-x32-700b3.tar.gz -C /tmp && \
+        cp HRConvert2/Documentation/Build/rar-arm64 /tmp/rar-arm64 && \
+        chmod +x /tmp/rar-arm64 &&  ln -s /tmp/rar-arm64 /usr/bin/rar; \
+    fi
+
+# Copy required files.
+RUN cp HRConvert2/Documentation/Build/php.ini /usr/local/etc/php.ini
+RUN cp HRConvert2/index.html /var/www/html/index.html
+RUN cp HRConvert2/index.html /var/www/html/HRProprietary/index.html
+
+# Set permissions for required directories.
+RUN chmod -R 0755 /DATA && \
+  chown -R www-data:www-data /DATA && \
+  chmod -R 0755 /var/www/html && \
+  chown -R www-data:www-data /var/www/html
+
+# Expose the ports Apache listens on to the host.
+# Set these to whatever ports suits your needs.
 EXPOSE 80
+EXPOSE 443
 
-# Launch Apache in the foreground
-CMD ["apache2-foreground"]
+# Start Apache & Unoconv when the container runs.
+CMD ["sh", "-c", "apache2-foreground && python3 /usr/bin/unoconv -l"]

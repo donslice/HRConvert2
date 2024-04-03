@@ -42,7 +42,10 @@ jobs:
           context: ./Documentation/Build/
           dockerfile: Dockerfile
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          # tags: ${{ steps.meta.outputs.tags }}
+          tags: |
+            latest
+            $(date +%Y%m%d%H%M%S)
           labels: ${{ steps.meta.outputs.labels }}
     # - name: Build the Docker image
     #   run: docker build . --file Documentation/Build/Dockerfile --tag donslice/hrconvert2:$(date +%s)
